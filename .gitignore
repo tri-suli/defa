@@ -1,0 +1,8 @@
+.claude/settings.local.json
+docs/superpowers/
+.superpowers
+.idea/
+
+# Node
+node_modules/
+dist/
