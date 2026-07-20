@@ -9,7 +9,7 @@ import { loadConfig } from './config';
 import { enumeratePayload } from './enumerator';
 import { diffFiles } from './differ';
 import { deploy } from './deployer';
-import { importFromTarget } from './importer';
+import { importFromTarget, findOverwriteConflicts } from './importer';
 import { renderStatus, renderDiff, renderFindings } from './reporter';
 import { buildDeployPlan } from './commands';
 import { checkoutPreviousPayload } from './git';
@@ -35,9 +35,20 @@ export function buildProgram(): Command {
   program
     .command('import')
     .description('Bootstrap payload from existing ~/.claude/ artifacts')
-    .action(() => {
+    .option('--force', 'overwrite existing payload entries without confirmation', false)
+    .action(async (opts: { force: boolean }) => {
       const config = loadConfig(cwd());
       mkdirSync(config.payloadDir, { recursive: true });
+
+      const conflicts = findOverwriteConflicts(config.targetRoot, config.payloadDir, config.managed);
+      if (conflicts.length && !opts.force) {
+        console.log(`Existing payload entries would be overwritten: ${conflicts.join(', ')}`);
+        if (!(await confirm('Overwrite these entries?'))) {
+          console.log('Aborted.');
+          return;
+        }
+      }
+
       const imported = importFromTarget(config.targetRoot, config.payloadDir, config.managed);
       console.log(imported.length ? `Imported: ${imported.join(', ')}` : 'Nothing to import.');
     });
