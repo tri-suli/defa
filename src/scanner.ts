@@ -9,7 +9,9 @@ export function compilePatterns(sources: string[]): RegExp[] {
 
 export function scanContent(relPath: string, content: string, patterns: RegExp[]): SecretFinding[] {
   const findings: SecretFinding[] = [];
-  content.split('\n').forEach((line, index) => {
+  content.split('\n').forEach((rawLine, index) => {
+    // Strip the trailing \r of CRLF files so end-anchored patterns still match.
+    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
     for (const pattern of patterns) {
       const match = pattern.exec(line);
       if (match) {
