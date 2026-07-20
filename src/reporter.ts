@@ -23,6 +23,10 @@ export function renderDiff(entries: DiffEntry[]): string {
   return parts.join('\n');
 }
 
+export function renderPlan(entries: DiffEntry[]): string {
+  return `${renderStatus(entries)}\n${renderDiff(entries)}`;
+}
+
 function colorizePatch(patch: string): string {
   return patch
     .split('\n')

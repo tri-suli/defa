@@ -10,7 +10,7 @@ import { enumeratePayload } from './enumerator';
 import { diffFiles } from './differ';
 import { deploy } from './deployer';
 import { importFromTarget, findOverwriteConflicts } from './importer';
-import { renderStatus, renderDiff, renderFindings } from './reporter';
+import { renderStatus, renderFindings, renderPlan } from './reporter';
 import { buildDeployPlan } from './commands';
 import { checkoutPreviousPayload } from './git';
 import type { DeployRecord } from './types';
@@ -73,8 +73,7 @@ export function buildProgram(): Command {
         console.log(renderFindings(plan.findings));
         console.log('');
       }
-      console.log(renderStatus(plan.entries));
-      console.log(renderDiff(plan.entries));
+      console.log(renderPlan(plan.entries));
     });
 
   program
@@ -94,8 +93,7 @@ export function buildProgram(): Command {
         }
       }
 
-      console.log(renderStatus(plan.entries));
-      console.log(renderDiff(plan.entries));
+      console.log(renderPlan(plan.entries));
 
       if (!(await confirm('Apply these changes?'))) {
         console.log('Aborted.');

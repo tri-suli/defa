@@ -15,4 +15,13 @@ describe('scanContent', () => {
     const patterns = compilePatterns(['sk-[A-Za-z0-9]{16,}']);
     expect(scanContent('CLAUDE.md', 'nothing here', patterns)).toEqual([]);
   });
+
+  it('strips trailing \\r so end-anchored patterns match CRLF content', () => {
+    const patterns = compilePatterns(['AKIA[0-9A-Z]{16}$']);
+    const content = 'line one\r\nkey = AKIAABCDEFGHIJKLMNOP\r\nlast\r\n';
+    const findings = scanContent('CLAUDE.md', content, patterns);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].snippet).toBe('AKIAABCDEFGHIJKLMNOP');
+  });
 });
