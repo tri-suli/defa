@@ -2,14 +2,15 @@
 import { Command } from 'commander';
 import { cwd, stdin, stdout } from 'node:process';
 import { createInterface } from 'node:readline/promises';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config';
 import { enumeratePayload } from './enumerator';
 import { diffFiles } from './differ';
 import { deploy } from './deployer';
-import { importFromTarget } from './importer';
-import { renderStatus, renderDiff, renderFindings } from './reporter';
+import { importFromTarget, findOverwriteConflicts } from './importer';
+import { renderStatus, renderFindings, renderPlan } from './reporter';
 import { buildDeployPlan } from './commands';
 import { checkoutPreviousPayload } from './git';
 import type { DeployRecord } from './types';
@@ -34,9 +35,20 @@ export function buildProgram(): Command {
   program
     .command('import')
     .description('Bootstrap payload from existing ~/.claude/ artifacts')
-    .action(() => {
+    .option('--force', 'overwrite existing payload entries without confirmation', false)
+    .action(async (opts: { force: boolean }) => {
       const config = loadConfig(cwd());
       mkdirSync(config.payloadDir, { recursive: true });
+
+      const conflicts = findOverwriteConflicts(config.targetRoot, config.payloadDir, config.managed);
+      if (conflicts.length && !opts.force) {
+        console.log(`Existing payload entries would be overwritten: ${conflicts.join(', ')}`);
+        if (!(await confirm('Overwrite these entries?'))) {
+          console.log('Aborted.');
+          return;
+        }
+      }
+
       const imported = importFromTarget(config.targetRoot, config.payloadDir, config.managed);
       console.log(imported.length ? `Imported: ${imported.join(', ')}` : 'Nothing to import.');
     });
@@ -61,8 +73,7 @@ export function buildProgram(): Command {
         console.log(renderFindings(plan.findings));
         console.log('');
       }
-      console.log(renderStatus(plan.entries));
-      console.log(renderDiff(plan.entries));
+      console.log(renderPlan(plan.entries));
     });
 
   program
@@ -82,8 +93,7 @@ export function buildProgram(): Command {
         }
       }
 
-      console.log(renderStatus(plan.entries));
-      console.log(renderDiff(plan.entries));
+      console.log(renderPlan(plan.entries));
 
       if (!(await confirm('Apply these changes?'))) {
         console.log('Aborted.');
@@ -107,6 +117,17 @@ export function buildProgram(): Command {
 }
 
 // Only parse argv when executed directly (not when imported by tests).
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Resolves symlinks so the check holds for bins installed via `npm i -g`
+// or `npm link`, where argv[1] is a symlink in node_modules/.bin/.
+export function isDirectExecution(moduleUrl: string, argvPath: string | undefined): boolean {
+  if (!argvPath) return false;
+  try {
+    return realpathSync(argvPath) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   buildProgram().parse();
 }

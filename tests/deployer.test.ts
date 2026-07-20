@@ -33,4 +33,19 @@ describe('deploy', () => {
     expect(existsSync(join(target, 'foreign.md'))).toBe(true);
     expect(existsSync(join(target, 'same.md'))).toBe(false);
   });
+
+  it('rejects relPath escaping the target root via ..', () => {
+    const entries: DiffEntry[] = [
+      { relPath: '../escape.md', change: 'new', payloadContent: 'x', targetContent: null },
+    ];
+    expect(() => deploy(payload, target, entries)).toThrow(/outside target root/);
+    expect(existsSync(join(target, '..', 'escape.md'))).toBe(false);
+  });
+
+  it('rejects absolute relPath', () => {
+    const entries: DiffEntry[] = [
+      { relPath: '/etc/evil.md', change: 'new', payloadContent: 'x', targetContent: null },
+    ];
+    expect(() => deploy(payload, target, entries)).toThrow(/outside target root/);
+  });
 });
