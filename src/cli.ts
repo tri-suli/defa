@@ -2,8 +2,9 @@
 import { Command } from 'commander';
 import { cwd, stdin, stdout } from 'node:process';
 import { createInterface } from 'node:readline/promises';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config';
 import { enumeratePayload } from './enumerator';
 import { diffFiles } from './differ';
@@ -107,6 +108,17 @@ export function buildProgram(): Command {
 }
 
 // Only parse argv when executed directly (not when imported by tests).
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Resolves symlinks so the check holds for bins installed via `npm i -g`
+// or `npm link`, where argv[1] is a symlink in node_modules/.bin/.
+export function isDirectExecution(moduleUrl: string, argvPath: string | undefined): boolean {
+  if (!argvPath) return false;
+  try {
+    return realpathSync(argvPath) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   buildProgram().parse();
 }
