@@ -3,15 +3,16 @@ import { createTwoFilesPatch } from 'diff';
 import type { DiffEntry, SecretFinding } from './types';
 
 export function renderStatus(entries: DiffEntry[]): string {
-  const counts = { new: 0, changed: 0, same: 0 };
+  const counts = { new: 0, changed: 0, unlinked: 0, linked: 0 };
   for (const entry of entries) counts[entry.change] += 1;
-  return `new: ${counts.new}  changed: ${counts.changed}  same: ${counts.same}`;
+  return `new: ${counts.new}  changed: ${counts.changed}  unlinked: ${counts.unlinked}  linked: ${counts.linked}`;
 }
 
 export function renderDiff(entries: DiffEntry[]): string {
   const parts: string[] = [];
   for (const entry of entries) {
-    if (entry.change === 'same') continue;
+    // unlinked/linked targets already hold the payload content: no content diff to show.
+    if (entry.change === 'unlinked' || entry.change === 'linked') continue;
     const patch = createTwoFilesPatch(
       entry.relPath,
       entry.relPath,

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { importFromTarget, findOverwriteConflicts } from '../src/importer';
@@ -38,6 +38,16 @@ describe('importFromTarget', () => {
     expect(imported).toEqual(['CLAUDE.md']);
     expect(readFileSync(join(payload, 'CLAUDE.md'), 'utf8')).toBe('fresh instructions');
   });
+
+  it('skips targets already linked to the payload instead of copying a file onto itself', () => {
+    writeFileSync(join(payload, 'CLAUDE.md'), 'curated instructions');
+    symlinkSync(join(payload, 'CLAUDE.md'), join(target, 'CLAUDE.md'));
+
+    const imported = importFromTarget(target, payload, ['CLAUDE.md']);
+
+    expect(imported).toEqual([]);
+    expect(readFileSync(join(payload, 'CLAUDE.md'), 'utf8')).toBe('curated instructions');
+  });
 });
 
 describe('findOverwriteConflicts', () => {
@@ -50,6 +60,13 @@ describe('findOverwriteConflicts', () => {
     const conflicts = findOverwriteConflicts(target, payload, ['CLAUDE.md', 'skills', 'commands', 'agents']);
 
     expect(conflicts).toEqual(['CLAUDE.md']);
+  });
+
+  it('ignores targets already linked to the payload', () => {
+    writeFileSync(join(payload, 'CLAUDE.md'), 'payload copy');
+    symlinkSync(join(payload, 'CLAUDE.md'), join(target, 'CLAUDE.md'));
+
+    expect(findOverwriteConflicts(target, payload, ['CLAUDE.md'])).toEqual([]);
   });
 
   it('returns an empty list on first-time bootstrap', () => {

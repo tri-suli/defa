@@ -30,11 +30,11 @@ function writeDeployRecord(projectRoot: string, record: DeployRecord): void {
 
 export function buildProgram(): Command {
   const program = new Command();
-  program.name('defa').description('External curation layer for ~/.claude/ global config');
+  program.name('defa').description('External curation layer for Claude Code global config');
 
   program
     .command('import')
-    .description('Bootstrap payload from existing ~/.claude/ artifacts')
+    .description('Bootstrap payload from existing target root artifacts')
     .option('--force', 'overwrite existing payload entries without confirmation', false)
     .action(async (opts: { force: boolean }) => {
       const config = loadConfig(cwd());
@@ -55,7 +55,7 @@ export function buildProgram(): Command {
 
   program
     .command('status')
-    .description('Summarize differences between payload and ~/.claude/')
+    .description('Summarize differences between payload and the target root')
     .action(async () => {
       const config = loadConfig(cwd());
       const relPaths = await enumeratePayload(config.payloadDir);
@@ -78,7 +78,7 @@ export function buildProgram(): Command {
 
   program
     .command('deploy')
-    .description('Scan, diff, confirm, then additively copy DEFA-owned files to ~/.claude/')
+    .description('Scan, diff, confirm, then symlink DEFA-owned files into the target root')
     .option('--force', 'proceed even if secrets are found', false)
     .action(async (opts: { force: boolean }) => {
       const config = loadConfig(cwd());
@@ -100,17 +100,18 @@ export function buildProgram(): Command {
         return;
       }
 
-      const written = deploy(config.payloadDir, config.targetRoot, plan.entries);
-      writeDeployRecord(cwd(), { deployedAt: new Date().toISOString(), written });
-      console.log(`Deployed ${written.length} file(s).`);
+      const { written, backedUp } = deploy(config.payloadDir, config.targetRoot, plan.entries);
+      writeDeployRecord(cwd(), { deployedAt: new Date().toISOString(), written, backedUp });
+      if (backedUp.length) console.log(`Backed up: ${backedUp.join(', ')}`);
+      console.log(`Linked ${written.length} file(s).`);
     });
 
   program
     .command('rollback')
-    .description('Restore payload from the previous commit, then re-run deploy')
+    .description('Restore payload from the previous commit; linked targets follow immediately')
     .action(() => {
       checkoutPreviousPayload(cwd());
-      console.log('Payload rolled back to previous commit. Run `defa deploy` to apply.');
+      console.log('Payload rolled back to previous commit. Linked targets reflect it immediately.');
     });
 
   return program;
