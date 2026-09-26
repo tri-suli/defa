@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DeployRecord } from '../src/types';
@@ -82,30 +82,45 @@ describe('deploy command (integration)', () => {
     expect(readDeployRecord().written).toEqual(['CLAUDE.md']);
   });
 
-  it('writes changed files and records the deploy when confirmed', async () => {
+  it('links new files and records the deploy when confirmed', async () => {
     writePayloadFile('CLAUDE.md', 'payload content');
-    writePayloadFile('unchanged.md', 'already deployed');
-    writeFileSync(join(targetRoot, 'unchanged.md'), 'already deployed');
     questionMock.mockResolvedValue('y');
 
     await runCli('deploy');
 
     expect(questionMock).toHaveBeenCalledOnce();
+    expect(lstatSync(join(targetRoot, 'CLAUDE.md')).isSymbolicLink()).toBe(true);
     expect(readFileSync(join(targetRoot, 'CLAUDE.md'), 'utf8')).toBe('payload content');
     const record = readDeployRecord();
     expect(record.written).toEqual(['CLAUDE.md']);
+    expect(record.backedUp).toEqual([]);
     expect(new Date(record.deployedAt).getTime()).not.toBeNaN();
   });
 
-  it('overwrites a stale target file when confirmed', async () => {
+  it('backs up a stale target file and links it when confirmed', async () => {
     writePayloadFile('CLAUDE.md', 'new version');
     writeFileSync(join(targetRoot, 'CLAUDE.md'), 'old version');
     questionMock.mockResolvedValue('yes');
 
     await runCli('deploy');
 
-    expect(readFileSync(join(targetRoot, 'CLAUDE.md'), 'utf8')).toBe('new version');
-    expect(readDeployRecord().written).toEqual(['CLAUDE.md']);
+    expect(lstatSync(join(targetRoot, 'CLAUDE.md')).isSymbolicLink()).toBe(true);
+    const record = readDeployRecord();
+    expect(record.written).toEqual(['CLAUDE.md']);
+    expect(record.backedUp).toHaveLength(1);
+    expect(readFileSync(join(targetRoot, record.backedUp[0]), 'utf8')).toBe('old version');
+  });
+
+  it('reflects payload edits immediately and skips already linked files on redeploy', async () => {
+    writePayloadFile('CLAUDE.md', 'first');
+    questionMock.mockResolvedValue('y');
+    await runCli('deploy');
+
+    writePayloadFile('CLAUDE.md', 'edited in repo');
+    expect(readFileSync(join(targetRoot, 'CLAUDE.md'), 'utf8')).toBe('edited in repo');
+
+    await runCli('deploy');
+    expect(readDeployRecord().written).toEqual([]);
   });
 
   it('aborts without writing when the confirmation is declined', async () => {

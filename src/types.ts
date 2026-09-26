@@ -9,7 +9,11 @@ export interface DefaConfig {
   secretPatterns: string[];
 }
 
-export type ChangeType = 'new' | 'changed' | 'same';
+/**
+ * new: target missing; changed: target content differs; unlinked: same content
+ * but not a link to the payload; linked: target is a symlink to the payload file.
+ */
+export type ChangeType = 'new' | 'changed' | 'unlinked' | 'linked';
 
 export interface DiffEntry {
   relPath: string;
@@ -28,4 +32,5 @@ export interface SecretFinding {
 export interface DeployRecord {
   deployedAt: string;
   written: string[];
+  backedUp: string[];
 }
